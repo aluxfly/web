@@ -233,15 +233,53 @@
             </div>
         </div>
         
-        <div class="last-update" id="lastUpdate">最后更新：-</div>
+        <div class="last-update">
+            <span id="lastUpdate">最后更新：-</span> | 
+            数据源：<span id="dataSource">加载中...</span>
+        </div>
     </div>
 
     <script>
-        // 模拟任务数据（实际应从 API 或 LocalStorage 加载）
+        // API 配置
+        const API_BASE_URL = 'http://172.19.1.131:8080/api'; // 服务器 IP
         let tasks = [];
+        let useLocalData = false; // 如果 API 不可用，使用本地数据
         
-        // 从 LocalStorage 加载任务
-        function loadTasks() {
+        // 从 API 加载任务
+        async function loadTasks() {
+            try {
+                // 尝试从 API 加载
+                const response = await fetch(`${API_BASE_URL}/tasks`, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('API 不可用');
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    tasks = data.tasks;
+                    useLocalData = false;
+                    console.log('✅ 从 API 加载任务成功:', tasks.length);
+                } else {
+                    throw new Error('API 返回失败');
+                }
+            } catch (error) {
+                console.log('⚠️ API 加载失败，使用本地数据:', error.message);
+                // API 不可用，使用本地数据
+                loadLocalTasks();
+            }
+            
+            renderTasks();
+            updateStats();
+            updateLastUpdateTime();
+        }
+        
+        // 从本地加载任务（备用）
+        function loadLocalTasks() {
             const saved = localStorage.getItem('taskBoard');
             if (saved) {
                 tasks = JSON.parse(saved);
@@ -276,10 +314,7 @@
                     }
                 ];
             }
-            
-            renderTasks();
-            updateStats();
-            updateLastUpdateTime();
+            useLocalData = true;
         }
         
         // 渲染任务
@@ -329,14 +364,23 @@
         
         // 更新统计
         function updateStats() {
-            document.getElementById('totalTasks').textContent = tasks.length;
-            document.getElementById('pendingTasks').textContent = 
-                tasks.filter(t => t.status === 'processing' || t.status === 'pending').length;
-            document.getElementById('completedTasks').textContent = 
-                tasks.filter(t => t.status === 'completed').length;
+            const total = tasks.length;
+            const pending = tasks.filter(t => t.status === 'pending').length;
+            const processing = tasks.filter(t => t.status === 'processing').length;
+            const completed = tasks.filter(t => t.status === 'completed').length;
+            
+            document.getElementById('totalTasks').textContent = total;
+            document.getElementById('pendingTasks').textContent = pending + processing;
+            document.getElementById('completedTasks').textContent = completed;
             
             const uniqueAgents = new Set(tasks.map(t => t.agent)).size;
             document.getElementById('activeAgents').textContent = uniqueAgents;
+            
+            // 显示数据源
+            const dataSource = document.getElementById('dataSource');
+            if (dataSource) {
+                dataSource.textContent = useLocalData ? '本地数据' : '实时 API';
+            }
         }
         
         // 更新最后更新时间

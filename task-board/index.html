@@ -176,10 +176,42 @@
             cursor: pointer;
             font-size: 14px;
             margin-top: 15px;
+            transition: all 0.3s;
         }
         
         .refresh-btn:hover {
             background: #5568d3;
+            transform: scale(1.05);
+        }
+        
+        .refresh-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .refresh-btn.loading {
+            position: relative;
+            color: transparent;
+        }
+        
+        .refresh-btn.loading::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            top: 50%;
+            left: 50%;
+            margin-top: -8px;
+            margin-left: -8px;
+            border: 2px solid #fff;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
         
         .last-update {
@@ -246,16 +278,26 @@
         let useLocalData = false; // 如果 API 不可用，使用本地数据
         
         // 从 API 加载任务
-        async function loadTasks() {
+        async function loadTasks(showLoading = true) {
+            const refreshBtn = document.querySelector('.refresh-btn');
+            
+            // 设置加载状态
+            if (showLoading && refreshBtn) {
+                refreshBtn.disabled = true;
+                refreshBtn.classList.add('loading');
+            }
+            
             try {
                 // 尝试从 API 加载
                 const response = await fetch(`${API_BASE_URL}/tasks`, {
                     method: 'GET',
-                    headers: { 'Accept': 'application/json' }
+                    headers: { 'Accept': 'application/json' },
+                    // 添加超时控制
+                    signal: AbortSignal.timeout(5000)
                 });
                 
                 if (!response.ok) {
-                    throw new Error('API 不可用');
+                    throw new Error(`API 响应失败：${response.status}`);
                 }
                 
                 const data = await response.json();
@@ -271,6 +313,12 @@
                 console.log('⚠️ API 加载失败，使用本地数据:', error.message);
                 // API 不可用，使用本地数据
                 loadLocalTasks();
+            } finally {
+                // 恢复按钮状态
+                if (refreshBtn) {
+                    refreshBtn.disabled = false;
+                    refreshBtn.classList.remove('loading');
+                }
             }
             
             renderTasks();
